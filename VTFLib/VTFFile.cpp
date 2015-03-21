@@ -3437,43 +3437,32 @@ vlBool CVTFFile::ConvertFromRGBA8888(vlByte *lpSource, vlByte *lpDest, vlUInt ui
 //
 vlBool CVTFFile::CompressDXTn(vlByte *lpSource, vlByte *lpDest, vlUInt uiWidth, vlUInt uiHeight, VTFImageFormat DestFormat)
 {
-	int flags = 0;
-
-	// Set the format.
-	switch(uiDXTQuality)
-	{
-	case DXT_QUALITY_LOW:
-		flags += squish::kColourRangeFit;
-		break;
-	case DXT_QUALITY_MEDIUM:
-		flags += squish::kColourClusterFit;
-		break;
-	case DXT_QUALITY_HIGH:
-		flags += squish::kColourClusterFit;
-		break;
-	case DXT_QUALITY_HIGHEST:
-		flags += squish::kColourIterativeClusterFit;
-		break;
-	default:
-		LastError.Set("Quality setting not supported.");
-		return vlFalse;
-	}
+	ILenum format = 0;
 	switch(DestFormat)
 	{
 	case IMAGE_FORMAT_DXT1:
-		flags += squish::kDxt1;
+		format = IL_DXT1;
 		break;
 	case IMAGE_FORMAT_DXT3:
-		flags += squish::kDxt3;
+		format += IL_DXT3;
 		break;
 	case IMAGE_FORMAT_DXT5:
-		flags += squish::kDxt5;
+		format += IL_DXT5;
 		break;
 	default:
 		LastError.Set("Destination image format not supported.");
 		return vlFalse;
 	}
-	squish::CompressImage(lpSource, uiWidth, uiHeight, lpDest, flags);
+	ILuint outputSize = 0;
+	ILuint imageID = ilGenImage();
+	ilBindImage( imageID ) ;
+	ilTexImage(uiWidth, uiHeight, 1, 4, IL_RGBA, IL_UNSIGNED_BYTE, lpSource);
+	iluFlipImage(); //i dont even
+	ILubyte* output = ilCompressDXT(ilGetData(), uiWidth, uiHeight, 1, format, &outputSize);
+
+	printf("output size: %d", outputSize);
+	memcpy(lpDest, output, outputSize);
+//	ilDeleteImage(imageID);
 	return vlTrue;
 }
 
@@ -4095,6 +4084,7 @@ vlBool CVTFFile::Resize(vlByte *lpSourceRGBA8888, vlByte *lpDestRGBA8888, vlUInt
 	}
 	ILubyte * ilImageData = ilGetData();
 	memcpy(lpDestRGBA8888, ilImageData, targetSize);
+	ilDeleteImage(imageID);
 	return vlTrue;
 }
 
