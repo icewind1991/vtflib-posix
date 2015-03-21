@@ -865,6 +865,22 @@ vlBool CVTFFile::Create(vlUInt uiWidth, vlUInt uiHeight, vlUInt uiFrames, vlUInt
 						// The UserData struct gets passed to our callback.
 						Options.user_data = &UserData;
 
+
+						int mipmapSize = squish::GetMipmapCount()
+						squish::CompressImage(lpImageDataRGBA8888[i + j + k], this->Header->Width, this->Header->Height);
+						// Set the image data of a VTFFile object for the specified face and frame.
+						assert((vlUInt)count == CVTFFile::ComputeImageSize((vlUInt)mipMapData->width, (vlUInt)mipMapData->height, 1, UserData->ImageFormat));
+
+						if(MipmapImageFormat == this->GetFormat())
+						{
+							this->SetData(i, j, k, (vlUInt)mipMapData->mipLevel, (vlByte *)buffer);
+						}
+						else
+						{
+							assert(UserData->pVTFFile->GetFormat() != IMAGE_FORMAT_DXT1 && UserData->pVTFFile->GetFormat() != IMAGE_FORMAT_DXT1_ONEBITALPHA && UserData->pVTFFile->GetFormat() != IMAGE_FORMAT_DXT3 && UserData->pVTFFile->GetFormat() != IMAGE_FORMAT_DXT5);
+
+							CVTFFile::ConvertFromRGBA8888((vlByte *)buffer, UserData->pVTFFile->GetData(UserData->uiFrame, UserData->uiFace, UserData->uiSlice, (vlUInt)mipMapData->mipLevel), (vlUInt)mipMapData->width, (vlUInt)mipMapData->height, UserData->pVTFFile->GetFormat());
+						}
 						if(!nvDXTCompressWrapper(lpImageDataRGBA8888[i + j + k], this->Header->Width, this->Header->Height, &Options, NVWriteCallback))
 						{
 							throw 0;
@@ -3421,79 +3437,44 @@ vlBool CVTFFile::ConvertFromRGBA8888(vlByte *lpSource, vlByte *lpDest, vlUInt ui
 //
 vlBool CVTFFile::CompressDXTn(vlByte *lpSource, vlByte *lpDest, vlUInt uiWidth, vlUInt uiHeight, VTFImageFormat DestFormat)
 {
-#ifdef USE_NVDXT
-	nvCompressionOptions Options = nvCompressionOptions();
-
-	SNVCompressionUserData UserData = SNVCompressionUserData(lpDest, DestFormat);
-
-	// Don't generate mipmaps.
-	Options.mipMapGeneration = kNoMipMaps;
+	int flags = 0;
 
 	// Set the format.
 	switch(uiDXTQuality)
 	{
 	case DXT_QUALITY_LOW:
-		Options.quality = kQualityFastest;
+		flags += squish::kColourRangeFit;
 		break;
 	case DXT_QUALITY_MEDIUM:
-		Options.quality = kQualityNormal;
+		flags += squish::kColourClusterFit;
 		break;
 	case DXT_QUALITY_HIGH:
-		Options.quality = kQualityProduction;
+		flags += squish::kColourClusterFit;
 		break;
 	case DXT_QUALITY_HIGHEST:
-		Options.quality = kQualityHighest;
+		flags += squish::kColourIterativeClusterFit;
 		break;
+	default:
+		LastError.Set("Quality setting not supported.");
+		return vlFalse;
 	}
 	switch(DestFormat)
 	{
 	case IMAGE_FORMAT_DXT1:
-		Options.textureFormat = kDXT1;
-		Options.bForceDXT1FourColors = true;
-		break;
-	case IMAGE_FORMAT_DXT1_ONEBITALPHA:
-		Options.bBinaryAlpha = true;
-		Options.bForceDXT1FourColors = true;
-		Options.textureFormat = kDXT1a;
-		/*for(vlUInt i = 3; i < uiWidth * uiHeight * 4; i += 4)
-		{
-			lpSource[i] = lpSource[i] >= 128 ? 255 : 0;
-		}*/
+		flags += squish::kDxt1;
 		break;
 	case IMAGE_FORMAT_DXT3:
-		Options.textureFormat = kDXT3;
+		flags += squish::kDxt3;
 		break;
 	case IMAGE_FORMAT_DXT5:
-		Options.textureFormat = kDXT5;
+		flags += squish::kDxt5;
 		break;
 	default:
 		LastError.Set("Destination image format not supported.");
 		return vlFalse;
 	}
-
-	// nvDXTcompressRGBA() fails on widths or heights of 1 or 2 so rescale those images.
-	if(uiWidth < 4)
-	{
-		Options.rescaleImageType = kRescalePreScale;
-		Options.rescaleImageFilter = kMipFilterPoint;
-		Options.scaleX = 4.0f;
-	}
-
-	if(uiHeight < 4)
-	{
-		Options.rescaleImageType = kRescalePreScale;
-		Options.rescaleImageFilter = kMipFilterPoint;
-		Options.scaleY = 4.0f;
-	}
-
-	// The UserData struct gets passed to our callback.
-	Options.user_data = &UserData;
-
-	return nvDXTCompressWrapper(lpSource, uiWidth, uiHeight, &Options, NVWriteCallback);
-#else
-	LastError.Set("NVDXT support required for DXTn compression).");
-	return vlFalse;
-#endif
+	squish::CompressImage(lpSource, uiWidth, uiHeight, lpDest, flags);
+	return vlTrue;
 }
 
 typedef vlVoid (*TransformProc)(vlUInt16& R, vlUInt16& G, vlUInt16& B, vlUInt16& A);
@@ -4104,46 +4085,17 @@ vlBool CVTFFile::Resize(vlByte *lpSourceRGBA8888, vlByte *lpDestRGBA8888, vlUInt
 	assert(ResizeFilter >= 0 && ResizeFilter < MIPMAP_FILTER_COUNT);
 	assert(SharpenFilter >= 0 && SharpenFilter < SHARPEN_FILTER_COUNT);
 
-#ifdef USE_NVDXT
-	nvCompressionOptions Options = nvCompressionOptions();
-
-	SNVCompressionUserData UserData = SNVCompressionUserData(lpDestRGBA8888, IMAGE_FORMAT_RGBA8888);
-
-	// Don't generate mipmaps.
-	Options.mipMapGeneration = kNoMipMaps;
-
-	// Set new image size.
-	Options.rescaleImageType = kRescalePreScale;
-	Options.scaleX = (vlSingle)uiDestWidth;
-	Options.scaleY = (vlSingle)uiDestHeight;
-
-	// Set resize filter.
-	Options.rescaleImageFilter = (nvMipFilterTypes)ResizeFilter;
-
-	// Setup sharpen filter.
-	if(SharpenFilter != SHARPEN_FILTER_NONE)
-	{
-		Options.sharpenFilterType = (nvSharpenFilterTypes)SharpenFilter;
-		Options.sharpening_passes_per_mip_level[0] = 1;
-		Options.unsharp_data.radius32F = sUnsharpenRadius;
-		Options.unsharp_data.amount32F = sUnsharpenAmount;
-		Options.unsharp_data.threshold32F = sUnsharpenThreshold;
-		Options.xsharp_data.strength32F = sXSharpenStrength;
-		Options.xsharp_data.threshold32F = sXSharpenThreshold;
+	ILuint targetSize = uiDestWidth * uiDestHeight * 4;
+	ILuint imageID = ilGenImage();
+	ilBindImage( imageID ) ;
+	ilTexImage(uiSourceWidth, uiSourceHeight, 1, 4, IL_RGBA, IL_UNSIGNED_BYTE, lpSourceRGBA8888);
+	if(!iluScale(uiDestWidth, uiDestHeight, 24)){
+		LastError.Set("Failed scaling image with devIL.");
+		return vlFalse;
 	}
-
-	// Set the format.
-	Options.textureFormat = k8888;
-	Options.bSwapRB = true;
-
-	// The UserData struct gets passed to our callback.
-	Options.user_data = &UserData;
-
-	return nvDXTCompressWrapper(lpSourceRGBA8888, uiSourceWidth, uiSourceHeight, &Options, NVWriteCallback);
-#else
-	LastError.Set("NVDXT support required for CVTFFile::Resize().");
-	return vlFalse;
-#endif
+	ILubyte * ilImageData = ilGetData();
+	memcpy(lpDestRGBA8888, ilImageData, targetSize);
+	return vlTrue;
 }
 
 //

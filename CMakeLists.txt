@@ -64,3 +64,6 @@ set(SOURCE_FILES
     VTFLib/Writers.h)
 
 add_executable(vtflib_posix ${SOURCE_FILES})
+target_link_libraries(vtflib_posix squish)
+target_link_libraries(vtflib_posix IL)
+target_link_libraries(vtflib_posix ILU)

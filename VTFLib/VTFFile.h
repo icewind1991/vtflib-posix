@@ -24,6 +24,9 @@
 #include "Readers.h"
 #include "Writers.h"
 #include "VTFFormat.h"
+#include <squish.h>
+#include <IL/il.h>
+#include <IL/ilu.h>
 
 #ifdef __cplusplus
 extern "C" {

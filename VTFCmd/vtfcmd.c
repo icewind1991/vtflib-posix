@@ -666,6 +666,7 @@ int main(int argc, char* argv[])
 		}
 		break;
 	}
+	CreateOptions.bMipmaps = vlFalse;
 
 	// If the user just wants help, give it to them.
 	if(bHelp)
