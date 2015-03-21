@@ -17,6 +17,7 @@ July 25th, 2011
 Authors:
 Neil Jedrzejewski & Ryan Gregg
 Edits by Spencer Alves
+Port to devIL by Robin Appelman
 
 Build:
 1.3.2
@@ -25,6 +26,7 @@ Email:
 jed@wunderboy.org (Neil Jedrzejewski)
 ryansgregg@hotmail.com (Ryan Gregg)
 spencer@boatcake.net (Spencer Alves)
+robin@icewind.nl (Robin Appelman)
 
 Website:
 http://www.wunderboy.org/ (Neil Jedrzejewski)
@@ -46,9 +48,6 @@ The library contains five folders:
   Lib
   - Contains library C and C++ Header and Inline Files.
   
-  Sln
-  - Contains Visual Studio solutions.
-
   VTFCmd
   - Contains C example program source code.
 
@@ -58,12 +57,7 @@ The library contains five folders:
   VTFLib
   - Contains C++ library source code.
 
-The project files are for Visual Studio .NET 2003 and 2005; no .NET extensions
-are used except in VTFEdit.  Visual Studio 6.0 project files have also been
-included, but nvDXTLib does not come with the correct .lib files to link with.
-nvDXTLib is required for VTF creation and can be downloaded from:
-
-http://developer.nvidia.com/object/dds_utilities_legacy.html
+devIL is required for generating vtf files and mipmaps are currently not supported (use `-nomipmaps`)
 
 =============
 VTFCmd Usage:
